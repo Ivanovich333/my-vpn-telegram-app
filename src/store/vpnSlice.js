@@ -20,7 +20,7 @@ const vpnSlice = createSlice({
       })
       .addCase(fetchVpnStatus.fulfilled, (state, action) => {
         state.status = 'succeeded';
-        state.serverStatus = action.payload.serverStatus;
+        state.serverStatus = action.payload.status;
       })
       .addCase(fetchVpnStatus.rejected, (state, action) => {
         state.status = 'failed';

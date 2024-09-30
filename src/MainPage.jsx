@@ -5,6 +5,7 @@ import VpnLockIcon from '@mui/icons-material/VpnLock';
 import { useSelector } from 'react-redux';
 import { fetchVpnStatus } from './store/vpnSlice';
 import { fetchUserTraffic, generateUserAccessKey } from './store/userSlice';
+import { CircularProgress } from '@mui/material';
 
 const MainPage = () => {
   const handleAccessKeyClick = () => {
@@ -66,21 +67,28 @@ const MainPage = () => {
         }}
       >
         {/* VPN Status */}
-        <VpnLockIcon
-          sx={{
-            fontSize: 60,
-            color:
-              vpn.serverStatus === 'Online'
-                ? 'green'
-                : vpn.serverStatus === 'Offline'
-                ? 'red'
-                : 'gray',
-          }}
-        />
-        <Typography variant="h6">
-          VPN Server Status: <strong>{vpn.serverStatus || 'Loading...'}</strong>
-        </Typography>
-
+        <CardContent>
+          {vpn.status === 'loading' ? (
+            <CircularProgress />
+          ) : vpn.status === 'failed' ? (
+            <Typography variant="h6" color="error">
+              Error fetching VPN status
+            </Typography>
+          ) : (
+            <>
+              <VpnLockIcon
+                sx={{
+                  fontSize: 60,
+                  color:
+                    vpn.serverStatus.includes('load average') ? 'green' : 'red',
+                }}
+              />
+              <Typography variant="h6">
+                VPN Server Status: <strong>{vpn.serverStatus}</strong>
+              </Typography>
+    </>
+  )}
+        </CardContent>
 
         {/* Traffic Left */}
         <Typography variant="h4" color="primary">
