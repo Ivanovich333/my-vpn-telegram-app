@@ -72,22 +72,25 @@ const MainPage = () => {
             <CircularProgress />
           ) : vpn.status === 'failed' ? (
             <Typography variant="h6" color="error">
-              Error fetching VPN status
+              Error fetching VPN status: {vpn.error}
             </Typography>
-          ) : (
+          ) : vpn.serverStatus ? (
             <>
-              <VpnLockIcon
+                <VpnLockIcon
                 sx={{
                   fontSize: 60,
-                  color:
-                    vpn.serverStatus.includes('load average') ? 'green' : 'red',
+                  color: vpn.serverStatus.includes('load average') ? 'green' : 'red',
                 }}
               />
               <Typography variant="h6">
                 VPN Server Status: <strong>{vpn.serverStatus}</strong>
               </Typography>
-    </>
-  )}
+            </>
+          ) : (
+            <Typography variant="h6" color="textSecondary">
+              VPN Server Status: Unknown
+            </Typography>
+          )}
         </CardContent>
 
         {/* Traffic Left */}
