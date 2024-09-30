@@ -10,7 +10,7 @@ const vpnSlice = createSlice({
   name: 'vpn',
   initialState: {
     status: 'idle',
-    serverStatus: null,
+    serverStatus: '',
     error: null,
   },
   extraReducers: (builder) => {
@@ -25,6 +25,7 @@ const vpnSlice = createSlice({
       .addCase(fetchVpnStatus.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.error.message;
+        state.serverStatus = null; // Ensure serverStatus is null on error
       });
   },
 });

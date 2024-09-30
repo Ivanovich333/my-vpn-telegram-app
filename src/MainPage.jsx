@@ -68,6 +68,11 @@ const MainPage = () => {
       >
         {/* VPN Status */}
         <CardContent>
+          {vpn.status === 'failed' && vpn.error && (
+            <Typography variant="h6" color="error">
+              Error fetching VPN status: {vpn.error}
+            </Typography>
+          )}
           {vpn.status === 'loading' ? (
             <CircularProgress />
           ) : vpn.status === 'failed' ? (
