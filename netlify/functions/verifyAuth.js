@@ -30,8 +30,10 @@ exports.handler = async (event) => {
       };
     }
 
-    // Remove the hash parameter from initData
+    // Remove the hash parameter from params
     params.delete('hash');
+
+    // Create data check string
     const dataCheckString = Array.from(params.entries())
       .sort()
       .map(([key, value]) => `${key}=${value}`)
@@ -63,7 +65,3 @@ exports.handler = async (event) => {
     };
   }
 };
-// After computing hmac
-console.log('Computed HMAC:', hmac);
-console.log('Received hash:', hash);
-console.log('Data Check String:', dataCheckString);
