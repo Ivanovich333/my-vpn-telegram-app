@@ -8,7 +8,11 @@ const useTelegramUser = () => {
 
   useEffect(() => {
     const tg = window.Telegram.WebApp;
-    const initData = tg.initData;
+
+    if (!tg || !tg.initData || !tg.initDataUnsafe) {
+      console.error('Telegram WebApp data is not available.');
+      return;
+    }
 
     const verifyUser = async () => {
       try {
