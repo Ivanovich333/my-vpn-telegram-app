@@ -4,8 +4,16 @@ exports.handler = async (event) => {
   try {
     const BOT_TOKEN = process.env.BOT_TOKEN;
 
+    if (!BOT_TOKEN) {
+      console.error('BOT_TOKEN is not set');
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ ok: false, error: 'Server configuration error' }),
+      };
+    }
+
     // Get initData from query parameters
-    const { initData } = event.queryStringParameters;
+    const { initData } = event.queryStringParameters || {};
 
     if (!initData) {
       console.error('No initData provided');
@@ -39,13 +47,19 @@ exports.handler = async (event) => {
       .map(([key, value]) => `${key}=${value}`)
       .join('\n');
 
+    console.log('Data Check String:', dataCheckString);
+
     // Compute the HMAC-SHA256 hash
     const hmac = crypto
       .createHmac('sha256', secretKey)
       .update(dataCheckString)
       .digest('hex');
 
+    console.log('Computed HMAC:', hmac);
+    console.log('Received hash:', hash);
+
     if (hmac === hash) {
+      console.log('Authentication successful');
       return {
         statusCode: 200,
         body: JSON.stringify({ ok: true }),
