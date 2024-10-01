@@ -24,16 +24,16 @@ from telegram.ext import (
 )
 import paramiko  # Be cautious with this in async environments
 
-load_dotenv('./configure.env')
+load_dotenv()
 
-# Load environment variables (ensure these are set in your environment)
+# Load environment variables (ensure thcoese are set in your environment)
 HOST = os.getenv('SSH_HOST')
 USERNAME = os.getenv('SSH_USERNAME')
 PASSWORD = os.getenv('SSH_PASSWORD')
 SERVER_API_URL = os.getenv('SERVER_API_URL')  # e.g., 'https://216.173.69.109:49744/eR6p5QhdXM2pMUD6pAB_Rw'
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 ADMIN_IDS = json.loads(os.getenv('ADMIN_IDS', '[]'))  # e.g., '[554164909, 5215786730]'
-
+WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://myvpn123.netlify.app/')
 # Logging configuration
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -133,15 +133,24 @@ def save_message(user_id, text):
 # Main menu keyboard
 def main_keyboard():
     keyboard = [
-        [InlineKeyboardButton("Server Status", callback_data='Status')],
-        [InlineKeyboardButton("Generate New Key", callback_data='New_key')]
+        [
+            InlineKeyboardButton("Open My VPN App", web_app=WebAppInfo(url=WEB_APP_URL))
+        ],
+        [
+            InlineKeyboardButton("Server Status", callback_data='Status'),
+            InlineKeyboardButton("Generate New Key", callback_data='New_key')
+        ],
+        [
+            InlineKeyboardButton("My Plan", callback_data='My_Plan'),
+            InlineKeyboardButton("Help", callback_data='Help')
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 # Return keyboard
 def return_keyboard():
     keyboard = [
-        [InlineKeyboardButton("Return", callback_data='main_menu')]
+        [InlineKeyboardButton("Return to Main Menu", callback_data='main_menu')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -244,7 +253,12 @@ from telegram.ext import ContextTypes
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     save_user(user)
-    await update.message.reply_text(f'Hello, {user.first_name}!', reply_markup=main_keyboard())
+     # Create an inline keyboard with a button that opens the web app
+    
+    await update.message.reply_text(
+        f'Hello, {user.first_name}! Click the button below to open the app.',
+        reply_markup=main_keyboard()
+    )
 
 # Admin command handler
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -307,7 +321,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()  # Close the button notification
 
     if query.data == 'main_menu':
-        await query.message.reply_text('Choose an option:', reply_markup=main_keyboard())
+        await query.message.reply_text('Please choose an option:', reply_markup=main_keyboard())
 
     elif query.data == 'Status':
         # Run SSH command in a separate thread
@@ -370,6 +384,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'remove_subscription' and user_id in ADMIN_IDS:
         await query.message.reply_text('Enter the user ID to remove a subscription:')
         context.user_data['action'] = 'remove_subscription'
+    elif query.data == 'My_Plan':
+        # Handle 'My Plan' option
+        await query.message.reply_text('Here are your plan details...', reply_markup=return_keyboard())
+
+    elif query.data == 'Help':
+        # Handle 'Help' option
+        await query.message.reply_text('How can I assist you?', reply_markup=return_keyboard())
 
     else:
         await query.message.reply_text('Option not recognized.', reply_markup=return_keyboard())

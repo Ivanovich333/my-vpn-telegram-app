@@ -6,14 +6,9 @@ import theme from './theme';
 import { Provider } from 'react-redux';
 import store from './store';
 import '@twa-dev/sdk';
+import { init } from '@twa-dev/sdk';
 
-const { WebApp } = window.Telegram || {};
-
-if (WebApp) {
-  WebApp.ready();
-} else {
-  console.error('Telegram WebApp SDK not found');
-}
+init();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
