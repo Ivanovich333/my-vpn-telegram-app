@@ -2,24 +2,45 @@ const crypto = require('crypto');
 
 exports.handler = async (event) => {
   try {
-    const BOT_TOKEN = process.env.BOT_TOKEN; // Set this in your Netlify environment variables
-    const urlParams = new URLSearchParams(event.queryStringParameters);
-    const authData = Object.fromEntries(urlParams.entries());
+    const BOT_TOKEN = process.env.BOT_TOKEN;
 
-    const { hash, ...dataCheck } = authData;
-    const checkString = Object.keys(dataCheck)
+    // Get initData from query parameters
+    const { initData } = event.queryStringParameters;
+
+    if (!initData) {
+      console.error('No initData provided');
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ ok: false, error: 'No initData provided' }),
+      };
+    }
+
+    // Create a secret key using the bot token
+    const secretKey = crypto.createHash('sha256').update(BOT_TOKEN).digest();
+
+    // Parse initData to extract the hash parameter
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+
+    if (!hash) {
+      console.error('Hash not found in initData');
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ ok: false, error: 'Hash not found in initData' }),
+      };
+    }
+
+    // Remove the hash parameter from initData
+    params.delete('hash');
+    const dataCheckString = Array.from(params.entries())
       .sort()
-      .map((key) => `${key}=${dataCheck[key]}`)
+      .map(([key, value]) => `${key}=${value}`)
       .join('\n');
 
-    const secretKey = crypto
-      .createHash('sha256')
-      .update(BOT_TOKEN)
-      .digest();
-
+    // Compute the HMAC-SHA256 hash
     const hmac = crypto
       .createHmac('sha256', secretKey)
-      .update(checkString)
+      .update(dataCheckString)
       .digest('hex');
 
     if (hmac === hash) {
@@ -42,3 +63,7 @@ exports.handler = async (event) => {
     };
   }
 };
+// After computing hmac
+console.log('Computed HMAC:', hmac);
+console.log('Received hash:', hash);
+console.log('Data Check String:', dataCheckString);

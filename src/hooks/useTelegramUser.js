@@ -17,7 +17,7 @@ const useTelegramUser = () => {
     const verifyUser = async () => {
       try {
         const response = await axios.get('/.netlify/functions/verifyAuth', {
-          params: tg.initDataUnsafe,
+          params: { initData: tg.initData },
         });
 
         if (response.data.ok) {
@@ -35,7 +35,7 @@ const useTelegramUser = () => {
           console.error('Authentication failed:', response.data.error);
         }
       } catch (error) {
-        console.error('Error verifying user:', error);
+        console.error('Error verifying user:', error.response ? error.response.data : error.message);
       }
     };
 
