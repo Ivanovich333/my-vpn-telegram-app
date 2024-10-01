@@ -34,6 +34,10 @@ const MainPage = () => {
       }}
     >
       {/* User Profile Section */}
+      <Avatar src={user.photoUrl} alt={user.firstName} />
+      <Typography variant="h6">
+        Welcome, {user.firstName} {user.lastName}
+      </Typography>
       <Box
         sx={{
           position: 'sticky',
