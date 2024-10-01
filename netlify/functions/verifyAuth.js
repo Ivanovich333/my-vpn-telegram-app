@@ -8,10 +8,14 @@ exports.handler = async (event) => {
       console.error('BOT_TOKEN is not set');
       return {
         statusCode: 500,
-        body: JSON.stringify({ ok: false, error: 'Server configuration error' }),
+        body: JSON.stringify({ ok: false, error: 'Server configuration error: BOT_TOKEN not set' }),
       };
+    } else {
+      console.log('BOT_TOKEN is set');
+      // For security reasons, do not log the actual BOT_TOKEN value
     }
 
+    // The rest of your function...
     // Get initData from query parameters
     const { initData } = event.queryStringParameters || {};
 
