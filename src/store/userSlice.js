@@ -13,15 +13,6 @@ export const fetchUserTraffic = createAsyncThunk('user/fetchTraffic', async () =
     const response = await generateAccessKey(user.id);
     return response.data;
   });
-
-  const initialState = {
-    id: null,
-    firstName: '',
-    lastName: '',
-    username: '',
-    photoUrl: '',
-    isAuthenticated: false,
-  };
   
   const userSlice = createSlice({
     name: 'user',
@@ -34,25 +25,7 @@ export const fetchUserTraffic = createAsyncThunk('user/fetchTraffic', async () =
       status: 'idle',
       error: null,
     },
-    reducers: {
-      setUserProfile(state, action) {
-        const { id, firstName, lastName, username, photoUrl } = action.payload;
-        state.id = id;
-        state.firstName = firstName;
-        state.lastName = lastName;
-        state.username = username;
-        state.photoUrl = photoUrl;
-        state.isAuthenticated = true;
-      },
-      logout(state) {
-        state.id = null;
-        state.firstName = '';
-        state.lastName = '';
-        state.username = '';
-        state.photoUrl = '';
-        state.isAuthenticated = false;
-      },
-    },
+    reducers: {},
     extraReducers: (builder) => {
       builder
         .addCase(fetchUserTraffic.fulfilled, (state, action) => {
@@ -64,5 +37,4 @@ export const fetchUserTraffic = createAsyncThunk('user/fetchTraffic', async () =
     },
   });
   
-  export const { setUserProfile, logout } = userSlice.actions;
   export default userSlice.reducer;
