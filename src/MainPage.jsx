@@ -5,13 +5,27 @@ import VpnLockIcon from '@mui/icons-material/VpnLock';
 import { useSelector } from 'react-redux';
 import { fetchVpnStatus } from './store/vpnSlice';
 import { fetchUserTraffic, generateUserAccessKey } from './store/userSlice';
-import { CircularProgress } from '@mui/material';
+import { CircularProgress, Fade } from '@mui/material';
+
 
 const MainPage = () => {
   const handleAccessKeyClick = () => {
     dispatch(generateUserAccessKey());
     // You might want to handle the response and display the access key
   };
+  const pulseAnimation = {
+    '@keyframes pulse': {
+      '0%': {
+        transform: 'scale(1)',
+      },
+      '50%': {
+        transform: 'scale(1.05)',
+      },
+      '100%': {
+        transform: 'scale(1)',
+      },
+    },
+  };  
   const handleMyPlanClick = () => {
     // Navigate to the My Plan page or display plan details
     // For now, we'll just log to the console
@@ -67,36 +81,53 @@ const MainPage = () => {
         }}
       >
         {/* VPN Status */}
-        <CardContent>
-          {vpn.status === 'failed' && vpn.error && (
-            <Typography variant="h6" color="error">
-              Error fetching VPN status: {vpn.error}
-            </Typography>
-          )}
-          {vpn.status === 'loading' ? (
-            <CircularProgress />
-          ) : vpn.status === 'failed' ? (
-            <Typography variant="h6" color="error">
-              Error fetching VPN status: {vpn.error}
-            </Typography>
-          ) : vpn.serverStatus ? (
-            <>
-                <VpnLockIcon
-                sx={{
-                  fontSize: 60,
-                  color: vpn.serverStatus.includes('load average') ? 'green' : 'red',
-                }}
-              />
-              <Typography variant="h6">
-                VPN Server Status: <strong>{vpn.serverStatus}</strong>
+        <Card
+          sx={{
+            flex: 1,
+            borderRadius: 4,
+            textAlign: 'center',
+          }}
+        >
+          <CardContent
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+          >
+            {vpn.status === 'loading' ? (
+              <CircularProgress size={60} />
+            ) : vpn.status === 'failed' ? (
+              <Typography variant="h6" color="error">
+                Error fetching VPN status
               </Typography>
-            </>
-          ) : (
-            <Typography variant="h6" color="textSecondary">
-              VPN Server Status: Unknown
-            </Typography>
-          )}
-        </CardContent>
+            ) : (
+              <Fade in={vpn.status === 'succeeded'} timeout={600}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                  }}
+                >
+                  <VpnLockIcon
+                    sx={{
+                      fontSize: 60,
+                      color: vpn.serverStatus === 'Online' ? 'green' : 'red',
+                      transition: 'color 0.5s ease',
+                      animation:
+                        vpn.serverStatus === 'Online' ? 'pulse 2s infinite' : 'none',
+                      ...pulseAnimation,
+                    }}
+                  />
+                  <Typography variant="h5" sx={{ mt: 1 }}>
+                    {vpn.serverStatus}
+                  </Typography>
+                </Box>
+              </Fade>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Traffic Left */}
         <Typography variant="h4" color="primary">

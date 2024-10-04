@@ -24,9 +24,13 @@ exports.handler = async function (event, context) {
           stream
             .on('close', (code, signal) => {
               conn.end();
+
+              // Determine if the server is online based on the output
+              const isOnline = data.includes('load average');
+
               resolve({
                 statusCode: 200,
-                body: JSON.stringify({ status: data.trim() }),
+                body: JSON.stringify({ status: isOnline ? 'Online' : 'Offline' }),
               });
             })
             .on('data', (chunk) => {
@@ -35,6 +39,12 @@ exports.handler = async function (event, context) {
             .stderr.on('data', (chunk) => {
               console.error('STDERR:', chunk.toString());
             });
+        });
+      })
+      .on('error', (err) => {
+        reject({
+          statusCode: 500,
+          body: JSON.stringify({ error: 'Connection error: ' + err.message }),
         });
       })
       .connect({

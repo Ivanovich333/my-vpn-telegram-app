@@ -27,7 +27,9 @@ const vpnSlice = createSlice({
         state.error = action.error.message;
         state.serverStatus = null; // Ensure serverStatus is null on error
       });
+      
   },
+  
 });
 
 export default vpnSlice.reducer;
