@@ -8,18 +8,12 @@ const useTelegramUser = () => {
 
   useEffect(() => {
     const tg = window.Telegram.WebApp;
-
-    if (!tg || !tg.initData) {
-      console.error('Telegram WebApp data is not available.');
-      return;
-    }
+    const initData = tg.initData;
 
     const verifyUser = async () => {
       try {
-        console.log('Sending initData to server:', tg.initData);
-
         const response = await axios.get('/.netlify/functions/verifyAuth', {
-          params: { initData: tg.initData },
+          params: tg.initDataUnsafe,
         });
 
         if (response.data.ok) {
@@ -33,15 +27,11 @@ const useTelegramUser = () => {
               photoUrl: user.photo_url,
             })
           );
-          console.log('User authenticated successfully');
         } else {
           console.error('Authentication failed:', response.data.error);
         }
       } catch (error) {
-        console.error(
-          'Error verifying user:',
-          error.response ? error.response.data : error.message
-        );
+        console.error('Error verifying user:', error);
       }
     };
 
