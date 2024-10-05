@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My VPN App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    #status {
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Welcome to My VPN App</h1>
+  <p>Click the button below to enroll or update your subscription.</p>
+  <button id="enrollButton">Enroll Now</button>
+  <div id="status"></div>
+  <script>
+    const tg = window.Telegram.WebApp;
+  
+    // Fetch user subscription status from your server (optional)
+    fetch('https://yourserver.com/api/subscription-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ user_id: tg.initDataUnsafe.user.id })
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.is_subscribed) {
+          document.getElementById('enrollButton').innerText = 'Update Subscription';
+        }
+      });
+  
+    document.getElementById('enrollButton').addEventListener('click', () => {
+      const data = {
+        action: 'enroll',
+        payment_info: 'TRUE'
+      };
+      tg.sendData(JSON.stringify(data));
+      document.getElementById('status').innerText = 'Enrollment data sent to bot!';
+    });
+  </script>  
+</body>
+</html>
