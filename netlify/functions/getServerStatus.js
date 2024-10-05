@@ -8,6 +8,11 @@ exports.handler = async function (event, context) {
     const host = process.env.SSH_HOST;
     const username = process.env.SSH_USERNAME;
     const password = process.env.SSH_PASSWORD;
+    const initData = window.Telegram.WebApp.initData;
+    const initDataUnsafe = window.Telegram.WebApp.initDataUnsafe;
+
+    console.log('initData:', initData);
+    console.log('initDataUnsafe:', initDataUnsafe);
 
     conn
       .on('ready', () => {
