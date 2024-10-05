@@ -4,7 +4,6 @@ import os
 import logging
 import sqlite3
 import json
-import re
 import threading
 from dotenv import load_dotenv  # Import load_dotenv from python-dotenv
 
@@ -26,14 +25,15 @@ import paramiko  # Be cautious with this in async environments
 
 load_dotenv()
 
-# Load environment variables (ensure thcoese are set in your environment)
+# Load environment variables
 HOST = os.getenv('SSH_HOST')
 USERNAME = os.getenv('SSH_USERNAME')
 PASSWORD = os.getenv('SSH_PASSWORD')
-SERVER_API_URL = os.getenv('SERVER_API_URL')  # e.g., 'https://216.173.69.109:49744/eR6p5QhdXM2pMUD6pAB_Rw'
+SERVER_API_URL = os.getenv('SERVER_API_URL')
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-ADMIN_IDS = json.loads(os.getenv('ADMIN_IDS', '[]'))  # e.g., '[554164909, 5215786730]'
+ADMIN_IDS = json.loads(os.getenv('ADMIN_IDS', '[]'))
 WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://myvpn123.netlify.app/')
+
 # Logging configuration
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -66,7 +66,8 @@ def create_tables():
             username TEXT,
             payment_info TEXT DEFAULT 'FALSE',
             VLESS_keys TEXT DEFAULT '[]',
-            Outline_keys TEXT DEFAULT '[]'
+            Outline_key_id TEXT,
+            Outline_key_url TEXT
         )
     ''')
 
@@ -84,29 +85,45 @@ def create_tables():
     conn.commit()
     conn.close()
 
-# Save user to the database
-def save_user(user, payment_info='FALSE', VLESS_keys=None, Outline_keys=None):
-    if VLESS_keys is None:
-        VLESS_keys = []
-    if Outline_keys is None:
-        Outline_keys = []
-
-    VLESS_keys_json = json.dumps(VLESS_keys)
-    Outline_keys_json = json.dumps(Outline_keys)
-
+# Save or update user in the database
+def save_user(user, payment_info=None, VLESS_keys=None, Outline_key_id=None, Outline_key_url=None):
     conn = connect_db()
     if conn is None:
         return
     cursor = conn.cursor()
 
     try:
-        cursor.execute('''
-            INSERT OR IGNORE INTO users (
-                user_id, first_name, last_name, username, payment_info, VLESS_keys, Outline_keys
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            user.id, user.first_name, user.last_name, user.username, payment_info, VLESS_keys_json, Outline_keys_json
-        ))
+        # Build the columns and values dynamically
+        columns = ['user_id', 'first_name', 'last_name', 'username']
+        values = [user.id, user.first_name, user.last_name, user.username]
+
+        if payment_info is not None:
+            columns.append('payment_info')
+            values.append(payment_info)
+
+        if VLESS_keys is not None:
+            columns.append('VLESS_keys')
+            values.append(json.dumps(VLESS_keys))
+
+        if Outline_key_id is not None:
+            columns.append('Outline_key_id')
+            values.append(Outline_key_id)
+
+        if Outline_key_url is not None:
+            columns.append('Outline_key_url')
+            values.append(Outline_key_url)
+
+        placeholders = ', '.join(['?'] * len(values))
+        columns_str = ', '.join(columns)
+        update_str = ', '.join([f'{col}=excluded.{col}' for col in columns if col != 'user_id'])
+
+        sql = f'''
+            INSERT INTO users ({columns_str})
+            VALUES ({placeholders})
+            ON CONFLICT(user_id) DO UPDATE SET {update_str}
+        '''
+
+        cursor.execute(sql, values)
         conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Error saving user: {e}")
@@ -130,8 +147,10 @@ def save_message(user_id, text):
     finally:
         conn.close()
 
+# Handle web app data
 async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    save_user(user)  # Added this line
     web_app_data = update.effective_message.web_app_data
     data = web_app_data.data  # The JSON string sent from the web app
 
@@ -151,6 +170,7 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text('You have been enrolled successfully!')
     else:
         await update.message.reply_text('Unknown action.')
+
 # Main menu keyboard
 def main_keyboard():
     keyboard = [
@@ -198,14 +218,17 @@ def run_ssh_command(command):
         ssh.connect(HOST, username=USERNAME, password=PASSWORD)
         stdin, stdout, stderr = ssh.exec_command(command)
         result = stdout.read().decode()
+        error = stderr.read().decode()
         ssh.close()
+        if error:
+            logging.error(f"SSH command stderr: {error}")
         return result
     except Exception as e:
         logging.error(f"SSH command error: {e}")
         return None
 
 def new_outline_key():
-    command = f'curl --insecure -X POST {SERVER_API_URL}/access-keys'
+    command = f'curl -s --insecure -X POST {SERVER_API_URL}/access-keys'
     output = run_ssh_command(command)
     if output:
         try:
@@ -215,44 +238,30 @@ def new_outline_key():
             return key_id, access_url
         except json.JSONDecodeError as e:
             logging.error(f"Error decoding JSON: {e}")
+            logging.error(f"Output was: {output}")
     return None, None
 
 def delete_outline_key(key_id):
-    command = f'curl --insecure -X DELETE {SERVER_API_URL}/access-keys/{key_id}'
+    command = f'curl -s --insecure -X DELETE {SERVER_API_URL}/access-keys/{key_id}'
     output = run_ssh_command(command)
     return output
-
-def add_outline_key_to_user(user_id, key_id, key_url):
-    conn = connect_db()
-    if conn is None:
-        return
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute('UPDATE users SET Outline_keys = ?, payment_info = ? WHERE user_id = ?', (json.dumps([key_url]), 'TRUE', user_id))
-        conn.commit()
-    except sqlite3.Error as e:
-        logging.error(f"Error updating user with new key: {e}")
-    finally:
-        conn.close()
 
 def get_user_outline_key(user_id):
     conn = connect_db()
     if conn is None:
-        return None
+        return None, None
     cursor = conn.cursor()
 
     try:
-        cursor.execute('SELECT Outline_keys FROM users WHERE user_id = ?', (user_id,))
+        cursor.execute('SELECT Outline_key_id, Outline_key_url FROM users WHERE user_id = ?', (user_id,))
         result = cursor.fetchone()
-        if result:
-            keys = json.loads(result[0])
-            return keys[0] if keys else None
+        if result and result[1]:
+            return result[0], result[1]
     except sqlite3.Error as e:
         logging.error(f"Error retrieving user key: {e}")
     finally:
         conn.close()
-    return None
+    return None, None
 
 def remove_user_outline_key(user_id):
     conn = connect_db()
@@ -261,21 +270,18 @@ def remove_user_outline_key(user_id):
     cursor = conn.cursor()
 
     try:
-        cursor.execute('UPDATE users SET Outline_keys = ?, payment_info = ? WHERE user_id = ?', ('[]', 'FALSE', user_id))
+        cursor.execute('UPDATE users SET Outline_key_id = NULL, Outline_key_url = NULL, payment_info = ? WHERE user_id = ?', ('FALSE', user_id))
         conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Error removing user key: {e}")
     finally:
         conn.close()
 
-from telegram.ext import ContextTypes
-
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     save_user(user)
-     # Create an inline keyboard with a button that opens the web app
-    
+    # Create an inline keyboard with a button that opens the web app
     await update.message.reply_text(
         f'Hello, {user.first_name}! Click the button below to open the app.',
         reply_markup=main_keyboard()
@@ -334,9 +340,11 @@ def update_subscription(user_id, status):
     finally:
         conn.close()
 
+# Button handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
+    save_user(user)  # Added this line
     user_id = user.id
 
     await query.answer()  # Close the button notification
@@ -358,20 +366,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.application.create_task(get_status())
 
     elif query.data == 'New_key':
-        await query.message.reply_text('Select the required key:', reply_markup=keys_keyboard())
+        existing_key_id, _ = get_user_outline_key(user_id)
+        if existing_key_id:
+            delete_outline_key(existing_key_id)
+            remove_user_outline_key(user_id)
+        key_id, key_url = new_outline_key()
+        if key_id and key_url:
+            save_user(user, Outline_key_id=key_id, Outline_key_url=key_url, payment_info='TRUE')
+            await query.message.reply_text(
+                f'Your new key has been generated:\n`{key_url}`',
+                parse_mode='Markdown',
+                reply_markup=return_keyboard()
+            )
+        else:
+            await query.message.reply_text('Failed to generate new key.', reply_markup=return_keyboard())
 
     elif query.data == 'outline_key':
-        existing_key = get_user_outline_key(user_id)
-        if existing_key:
+        existing_key_id, existing_key_url = get_user_outline_key(user_id)
+        if existing_key_url:
             await query.message.reply_text(
-                f'Your existing key:\n`{existing_key}`\nDo you want to update it?',
+                f'Your existing key:\n`{existing_key_url}`\nDo you want to update it?',
                 parse_mode='Markdown',
                 reply_markup=outline_update_keyboard()
             )
         else:
             key_id, key_url = new_outline_key()
             if key_id and key_url:
-                add_outline_key_to_user(user_id, key_id, key_url)
+                save_user(user, Outline_key_id=key_id, Outline_key_url=key_url, payment_info='TRUE')
                 await query.message.reply_text(
                     f'Your new key:\n`{key_url}`',
                     parse_mode='Markdown',
@@ -381,15 +402,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.message.reply_text('Failed to generate new key.', reply_markup=return_keyboard())
 
     elif query.data == 'outline_update':
-        existing_key = get_user_outline_key(user_id)
-        if existing_key:
-            # Extract key ID from the existing key URL
-            key_id = extract_key_id(existing_key)
-            delete_outline_key(key_id)
+        existing_key_id, _ = get_user_outline_key(user_id)
+        if existing_key_id:
+            delete_outline_key(existing_key_id)
             remove_user_outline_key(user_id)
         key_id, key_url = new_outline_key()
         if key_id and key_url:
-            add_outline_key_to_user(user_id, key_id, key_url)
+            save_user(user, Outline_key_id=key_id, Outline_key_url=key_url, payment_info='TRUE')
             await query.message.reply_text(
                 f'Your updated key:\n`{key_url}`',
                 parse_mode='Markdown',
@@ -405,6 +424,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'remove_subscription' and user_id in ADMIN_IDS:
         await query.message.reply_text('Enter the user ID to remove a subscription:')
         context.user_data['action'] = 'remove_subscription'
+
     elif query.data == 'My_Plan':
         # Handle 'My Plan' option
         await query.message.reply_text('Here are your plan details...', reply_markup=return_keyboard())
@@ -416,47 +436,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.message.reply_text('Option not recognized.', reply_markup=return_keyboard())
 
-# Function to extract key ID from the key URL
-def extract_key_id(key_url):
-    # Implement extraction logic based on your key URL structure
-    # Example placeholder implementation:
-    return key_url.split('/')[-1]
-
 def main():
     create_tables()
-
-    # Ensure environment variables are set
-    if not all([HOST, USERNAME, PASSWORD, SERVER_API_URL, BOT_TOKEN]):
-        logging.error('Environment variables are not properly set.')
-        return
-
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Command handlers
+    # Handlers
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('admin', admin))
-
-    # Message handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Callback query handler
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
 
     # Run the bot
     app.run_polling()
 
 if __name__ == '__main__':
     main()
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-# Existing handlers
-app.add_handler(CommandHandler('start', start))
-app.add_handler(CommandHandler('admin', admin))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-app.add_handler(CallbackQueryHandler(button_handler))
-
-# Add the web app data handler
-app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
-
-# Run the bot
-app.run_polling()
