@@ -130,6 +130,27 @@ def save_message(user_id, text):
     finally:
         conn.close()
 
+async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    web_app_data = update.effective_message.web_app_data
+    data = web_app_data.data  # The JSON string sent from the web app
+
+    # Parse the JSON data
+    try:
+        data_dict = json.loads(data)
+    except json.JSONDecodeError:
+        await update.message.reply_text('Invalid data received.')
+        return
+
+    action = data_dict.get('action')
+    if action == 'enroll':
+        # Extract additional data as needed
+        payment_info = data_dict.get('payment_info', 'FALSE')
+        # Enroll the user into the database
+        save_user(user, payment_info=payment_info)
+        await update.message.reply_text('You have been enrolled successfully!')
+    else:
+        await update.message.reply_text('Unknown action.')
 # Main menu keyboard
 def main_keyboard():
     keyboard = [
@@ -426,3 +447,16 @@ def main():
 
 if __name__ == '__main__':
     main()
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+# Existing handlers
+app.add_handler(CommandHandler('start', start))
+app.add_handler(CommandHandler('admin', admin))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+app.add_handler(CallbackQueryHandler(button_handler))
+
+# Add the web app data handler
+app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
+
+# Run the bot
+app.run_polling()

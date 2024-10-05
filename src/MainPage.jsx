@@ -9,6 +9,23 @@ import { CircularProgress, Fade } from '@mui/material';
 
 
 const MainPage = () => {
+  const handleEnrollClick = () => {
+    const userData = {
+      action: 'enroll',
+      payment_info: 'TRUE', // Or any other relevant data
+      // Include additional data as needed
+    };
+
+    // Serialize the data to a JSON string
+    const jsonData = JSON.stringify(userData);
+
+    // Send data to the bot
+    if (window.Telegram.WebApp) {
+      window.Telegram.WebApp.sendData(jsonData);
+    } else {
+      console.error('Telegram WebApp is not available');
+    }
+  };
   const handleAccessKeyClick = () => {
     dispatch(generateUserAccessKey());
     // You might want to handle the response and display the access key
@@ -161,6 +178,7 @@ const MainPage = () => {
         >
           My Plan
         </Button>
+        <button onClick={handleEnrollClick}>Enroll</button>
       </Box>
     </Box>
   );
