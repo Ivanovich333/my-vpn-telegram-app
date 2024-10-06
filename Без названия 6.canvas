@@ -1,0 +1,36 @@
+{
+	"nodes":[
+		{"id":"db7a6a094803fbdd","type":"text","text":"user_id","x":-40,"y":-25,"width":114,"height":60},
+		{"id":"600a7f4a16d932de","type":"text","text":"first_name","x":74,"y":-25,"width":137,"height":60},
+		{"id":"56a3ac70a2b9d4f1","type":"text","text":"last_name","x":211,"y":-25,"width":135,"height":60},
+		{"id":"9064b595af3ac7af","type":"text","text":"username","x":346,"y":-25,"width":134,"height":60},
+		{"id":"8bb661d6abc00f0e","type":"text","text":"sub_ID","x":480,"y":-25,"width":160,"height":60},
+		{"id":"0cb08fb5585913c4","type":"text","text":"id (порядковый)","x":-223,"y":-25,"width":183,"height":60},
+		{"id":"9adb61bacb1bd078","type":"text","text":"subscripions","x":459,"y":160,"width":152,"height":60},
+		{"id":"2bf707f432421491","type":"text","text":"id_type","x":611,"y":220,"width":115,"height":60},
+		{"id":"9cbdb885d04cfd96","type":"text","text":"users","x":-324,"y":-85,"width":101,"height":60},
+		{"id":"51d6e3933f7eb806","type":"text","text":"time_limit (в часах)","x":726,"y":220,"width":133,"height":60},
+		{"id":"e80b21c7bab1a7eb","type":"text","text":"message","x":-416,"y":190,"width":126,"height":60},
+		{"id":"bebd3daf9803872d","type":"text","text":"timestamp","x":-290,"y":190,"width":139,"height":60},
+		{"id":"4c150503986a4dd4","type":"text","text":"messages","x":-846,"y":130,"width":133,"height":60},
+		{"id":"3903c9411fd7b1fa","type":"text","text":"id (порядковый)","x":-713,"y":190,"width":183,"height":60},
+		{"id":"446224bc1415f4bd","type":"text","text":"user_id","x":-530,"y":190,"width":114,"height":60},
+		{"id":"6f97784a77e23f27","x":859,"y":220,"width":120,"height":60,"type":"text","text":"gb_limit"},
+		{"id":"7f5526124f14c646","type":"text","text":"max_keys","x":979,"y":220,"width":132,"height":60},
+		{"id":"fe1521f84c0a6d0a","type":"text","text":"vless_keys","x":-312,"y":380,"width":135,"height":60},
+		{"id":"88c7b30e75666f96","type":"text","text":"id (ключа)","x":-177,"y":440,"width":138,"height":60,"color":"4"},
+		{"id":"ef0dc00197c1af23","type":"text","text":"user_id","x":-39,"y":440,"width":114,"height":60,"color":"4"},
+		{"id":"75f74ac3ad9e2f32","type":"text","text":"time_end(ДАТА)","x":260,"y":440,"width":129,"height":60},
+		{"id":"b5019f4746a2b493","type":"text","text":"gb_end (ДАТА)","x":389,"y":440,"width":116,"height":60},
+		{"id":"f0bf3ac4e5f06f61","type":"text","text":"key","x":75,"y":440,"width":89,"height":60,"color":"4"},
+		{"id":"baeebb0509cdaf9c","type":"text","text":"port","x":164,"y":440,"width":94,"height":60,"color":"4"}
+	],
+	"edges":[
+		{"id":"08a1ba43b5cf4b36","fromNode":"db7a6a094803fbdd","fromSide":"bottom","toNode":"446224bc1415f4bd","toSide":"top"},
+		{"id":"cf116826b3ac6273","fromNode":"db7a6a094803fbdd","fromSide":"bottom","toNode":"ef0dc00197c1af23","toSide":"top"},
+		{"id":"edbcaa7c610d8da6","fromNode":"8bb661d6abc00f0e","fromSide":"bottom","toNode":"2bf707f432421491","toSide":"top"},
+		{"id":"22bbf314ca2efc43","fromNode":"51d6e3933f7eb806","fromSide":"bottom","toNode":"75f74ac3ad9e2f32","toSide":"top","label":"Преобразование в дату"},
+		{"id":"cca66224954f79ed","fromNode":"6f97784a77e23f27","fromSide":"bottom","toNode":"b5019f4746a2b493","toSide":"top"},
+		{"id":"eaeb338a6ca36708","fromNode":"7f5526124f14c646","fromSide":"bottom","toNode":"b5019f4746a2b493","toSide":"right","label":"максимум ключей (строк)"}
+	]
+}

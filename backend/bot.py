@@ -1,4 +1,9 @@
 # bot.py
+
+import json
+import random
+import os
+
 import asyncio
 import os
 import logging
@@ -6,9 +11,18 @@ import sqlite3
 import json
 import threading
 from dotenv import load_dotenv  # Import load_dotenv from python-dotenv
+import paramiko  # Be cautious with this in async environments
+
+from vless import (
+    generate_reality_keys,
+    login,
+    get_inbounds,
+    create_inbound,
+    add_client,
+)
 
 from telegram import (
-    Update,
+    Update, 
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     WebAppInfo,
@@ -21,7 +35,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters,
 )
-import paramiko  # Be cautious with this in async environments
+
 
 load_dotenv()
 
@@ -33,6 +47,7 @@ SERVER_API_URL = os.getenv('SERVER_API_URL')
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 ADMIN_IDS = json.loads(os.getenv('ADMIN_IDS', '[]'))
 WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://myvpn123.netlify.app/')
+ip_adress = '216.173.69.109'
 
 # Logging configuration
 logging.basicConfig(
@@ -82,6 +97,28 @@ def create_tables():
         )
     ''')
 
+    # Создаем таблицу keys, если она еще не существует
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS vless_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            key TEXT NOT NULL,
+            port INTEGER NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS vless_keys (
+            id_type INTEGER PRIMARY KEY AUTOINCREMENT,
+            time_limit INTEGER NOT NULL,
+            max_keys INTEGER NOT NULL,
+            admin TEXT NOT NULL,
+            date DATETIME NOT NULL
+        )
+    ''')
+
+
     conn.commit()
     conn.close()
 
@@ -89,6 +126,7 @@ def create_tables():
 def save_user(user, payment_info=None, VLESS_keys=None, Outline_key_id=None, Outline_key_url=None):
     conn = connect_db()
     if conn is None:
+        print('conn is None')
         return
     cursor = conn.cursor()
 
@@ -96,7 +134,7 @@ def save_user(user, payment_info=None, VLESS_keys=None, Outline_key_id=None, Out
         # Build the columns and values dynamically
         columns = ['user_id', 'first_name', 'last_name', 'username']
         values = [user.id, user.first_name, user.last_name, user.username]
-
+ 
         if payment_info is not None:
             columns.append('payment_info')
             values.append(payment_info)
@@ -179,7 +217,7 @@ def main_keyboard():
         ],
         [
             InlineKeyboardButton("Server Status", callback_data='Status'),
-            InlineKeyboardButton("Generate New Key", callback_data='New_key')
+            InlineKeyboardButton("Generate New Key", callback_data='New_inbound')
         ],
         [
             InlineKeyboardButton("My Plan", callback_data='My_Plan'),
@@ -226,6 +264,10 @@ def run_ssh_command(command):
     except Exception as e:
         logging.error(f"SSH command error: {e}")
         return None
+
+
+
+
 
 def new_outline_key():
     command = f'curl -s --insecure -X POST {SERVER_API_URL}/access-keys'
@@ -304,6 +346,10 @@ def admin_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+
+
+
+
 # Handle incoming messages
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -340,12 +386,44 @@ def update_subscription(user_id, status):
     finally:
         conn.close()
 
+def new_vless_inbound(user_id, username):
+    login()
+    conn = connect_db()
+    if conn is None:
+        return None, None
+    cursor = conn.cursor()
+    
+    # Генерация уникального порта, которого нет в таблице
+    while True:
+        port = random.randint(10000, 40000)
+        cursor.execute('SELECT port FROM vless_keys WHERE port = ?', (port,))
+        if cursor.fetchone() is None:
+            break
+
+
+    inbound_id, inbound_key = create_inbound(username, port, ip_adress)  # Получаем id и ключ
+
+    if inbound_id :  # Проверяем, что получили оба значения
+        cursor.execute(
+            'INSERT INTO vless_keys (id, user_id, username, port, key) VALUES (?, ?, ?, ?, ?)', 
+            (inbound_id, user_id, username, port, inbound_key)  # Добавляем ключ в запрос
+        )
+        conn.commit()  # Не забываем зафиксировать изменения
+    else:
+        print('Ошибка создания inbound, данные не будут сохранены в базу.')
+
+    conn.close()
+
+    return inbound_key
+
+
 # Button handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     save_user(user)  # Added this line
     user_id = user.id
+    username = user.username
 
     await query.answer()  # Close the button notification
 
@@ -364,6 +442,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Schedule the coroutine
         context.application.create_task(get_status())
+
+    elif query.data == 'New_inbound':
+        inbound_key = new_vless_inbound(user_id, username)
+        print('--------------------------------')
+        await query.message.reply_text(
+            f'Ваш новый ключ:\n```{inbound_key}```',
+            parse_mode='Markdown',
+            reply_markup=return_keyboard()
+        )
+
 
     elif query.data == 'New_key':
         existing_key_id, _ = get_user_outline_key(user_id)
@@ -439,7 +527,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     create_tables()
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
     # Handlers
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('admin', admin))
