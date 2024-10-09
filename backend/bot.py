@@ -3,7 +3,7 @@
 import json
 import random
 import os
-
+from datetime import datetime, timedelta
 import asyncio
 import os
 import logging
@@ -19,6 +19,7 @@ from vless import (
     get_inbounds,
     create_inbound,
     add_client,
+    get_inbound,
 )
 
 from telegram import (
@@ -79,10 +80,7 @@ def create_tables():
             first_name TEXT,
             last_name TEXT,
             username TEXT,
-            payment_info TEXT DEFAULT 'FALSE',
-            VLESS_keys TEXT DEFAULT '[]',
-            Outline_key_id TEXT,
-            Outline_key_url TEXT
+            sub_id INTEGER NOT NULL
         )
     ''')
 
@@ -92,38 +90,104 @@ def create_tables():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             message TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
-    # Создаем таблицу keys, если она еще не существует
+    # Create vless_keys table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS vless_keys (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             username TEXT NOT NULL,
             key TEXT NOT NULL,
-            port INTEGER NOT NULL
+            port INTEGER NOT NULL,
+            time_end DATETIME NOT NULL,
+            gb_end INTEGER
         )
     ''')
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS vless_keys (
+    # Create subscriptions table
+    cursor.execute('''          
+        CREATE TABLE IF NOT EXISTS subscriptions (
             id_type INTEGER PRIMARY KEY AUTOINCREMENT,
             time_limit INTEGER NOT NULL,
-            max_keys INTEGER NOT NULL,
-            admin TEXT NOT NULL,
-            date DATETIME NOT NULL
+            gb_limit INTEGER NOT NULL,
+            max_keys INTEGER NOT NULL
         )
     ''')
-
 
     conn.commit()
     conn.close()
-
 # Save or update user in the database
-def save_user(user, payment_info=None, VLESS_keys=None, Outline_key_id=None, Outline_key_url=None):
+
+def save_vless_key(user_id, username, key, port, time_end=None, gb_end=None):
+    conn = connect_db()
+    if conn is None:
+        print('conn is None')
+        return
+    cursor = conn.cursor()
+
+    try:
+        # Если time_end не передан, устанавливаем текущую дату и время
+        if time_end is None:
+            time_end = datetime.now()
+
+        # Список колонок и значений
+        columns = ['user_id', 'username', 'key', 'port', 'time_end', 'gb_end']
+        values = [user_id, username, key, port, time_end, gb_end]
+
+        # Плейсхолдеры для значений
+        placeholders = ', '.join(['?'] * len(values))
+        columns_str = ', '.join(columns)
+
+        # Логика обновления при конфликте по user_id
+        update_str = ', '.join([f'{col}=excluded.{col}' for col in columns if col != 'user_id'])
+
+        sql = f'''
+            INSERT INTO vless_keys ({columns_str})
+            VALUES ({placeholders})
+            ON CONFLICT(user_id) DO UPDATE SET {update_str}
+        '''
+
+        cursor.execute(sql, values)
+        conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Error saving vless key: {e}")
+    finally:
+        conn.close()
+
+def save_subscription(time_limit=0, gb_limit=0, max_keys=0):
+    conn = connect_db()
+    if conn is None:
+        print('conn is None')
+        return
+    cursor = conn.cursor()
+
+    try:
+        # Список колонок и значений
+        columns = ['time_limit', 'gb_limit', 'max_keys']
+        values = [time_limit, gb_limit, max_keys]
+
+        placeholders = ', '.join(['?'] * len(values))  # Плейсхолдеры для значений
+        columns_str = ', '.join(columns)  # Названия колонок
+        update_str = ', '.join([f'{col}=excluded.{col}' for col in columns])  # Для обновления при конфликте
+
+        sql = f'''
+            INSERT INTO subscriptions ({columns_str})
+            VALUES ({placeholders})
+            ON CONFLICT(id_type) DO UPDATE SET {update_str}
+        '''
+
+        cursor.execute(sql, values)
+        conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Error saving subscriptions: {e}")
+    finally:
+        conn.close()
+
+
+def save_user_sql(user, sub_id = 0):
     conn = connect_db()
     if conn is None:
         print('conn is None')
@@ -132,25 +196,9 @@ def save_user(user, payment_info=None, VLESS_keys=None, Outline_key_id=None, Out
 
     try:
         # Build the columns and values dynamically
-        columns = ['user_id', 'first_name', 'last_name', 'username']
-        values = [user.id, user.first_name, user.last_name, user.username]
+        columns = ['user_id', 'first_name', 'last_name', 'username', 'sub_id']
+        values = [user.id, user.first_name, user.last_name, user.username, sub_id]
  
-        if payment_info is not None:
-            columns.append('payment_info')
-            values.append(payment_info)
-
-        if VLESS_keys is not None:
-            columns.append('VLESS_keys')
-            values.append(json.dumps(VLESS_keys))
-
-        if Outline_key_id is not None:
-            columns.append('Outline_key_id')
-            values.append(Outline_key_id)
-
-        if Outline_key_url is not None:
-            columns.append('Outline_key_url')
-            values.append(Outline_key_url)
-
         placeholders = ', '.join(['?'] * len(values))
         columns_str = ', '.join(columns)
         update_str = ', '.join([f'{col}=excluded.{col}' for col in columns if col != 'user_id'])
@@ -188,7 +236,7 @@ def save_message(user_id, text):
 # Handle web app data
 async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    save_user(user)  # Added this line
+    save_user_sql(user)  # Added this line
     web_app_data = update.effective_message.web_app_data
     data = web_app_data.data  # The JSON string sent from the web app
 
@@ -204,7 +252,7 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         # Extract additional data as needed
         payment_info = data_dict.get('payment_info', 'FALSE')
         # Enroll the user into the database
-        save_user(user, payment_info=payment_info)
+        save_user_sql(user, payment_info=payment_info)
         await update.message.reply_text('You have been enrolled successfully!')
     else:
         await update.message.reply_text('Unknown action.')
@@ -322,7 +370,7 @@ def remove_user_outline_key(user_id):
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    save_user(user)
+    save_user_sql(user)
     # Create an inline keyboard with a button that opens the web app
     await update.message.reply_text(
         f'Hello, {user.first_name}! Click the button below to open the app.',
@@ -355,7 +403,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     text = update.message.text
 
-    save_user(user)
+    save_user_sql(user)
     save_message(user.id, text)
 
     if context.user_data.get('action') == 'add_subscription' and user.id in ADMIN_IDS:
@@ -386,8 +434,8 @@ def update_subscription(user_id, status):
     finally:
         conn.close()
 
-def new_vless_inbound(user_id, username):
-    login()
+def new_vless_inbound(user_id, username, gb_end):
+ 
     conn = connect_db()
     if conn is None:
         return None, None
@@ -400,13 +448,14 @@ def new_vless_inbound(user_id, username):
         if cursor.fetchone() is None:
             break
 
+    time_end = (datetime.now() + timedelta(days=30)).isoformat()
 
-    inbound_id, inbound_key = create_inbound(username, port, ip_adress)  # Получаем id и ключ
+    inbound_id, inbound_key = create_inbound(username, port, ip_adress, user_id)  # Получаем id и ключ
 
     if inbound_id :  # Проверяем, что получили оба значения
         cursor.execute(
-            'INSERT INTO vless_keys (id, user_id, username, port, key) VALUES (?, ?, ?, ?, ?)', 
-            (inbound_id, user_id, username, port, inbound_key)  # Добавляем ключ в запрос
+            'INSERT INTO vless_keys (id, user_id, username, port, key, time_end, gb_end) VALUES (?, ?, ?, ?, ?, ?, ?)', 
+            (inbound_id, user_id, username, port, inbound_key, time_end, gb_end)  # Добавляем ключ в запрос
         )
         conn.commit()  # Не забываем зафиксировать изменения
     else:
@@ -414,14 +463,17 @@ def new_vless_inbound(user_id, username):
 
     conn.close()
 
-    return inbound_key
+    return inbound_key, port
 
+def check_inbounds():
+    data_array = get_inbound()
+    
 
 # Button handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
-    save_user(user)  # Added this line
+    save_user_sql(user)  # Added this line
     user_id = user.id
     username = user.username
 
@@ -444,8 +496,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.application.create_task(get_status())
 
     elif query.data == 'New_inbound':
-        inbound_key = new_vless_inbound(user_id, username)
-        print('--------------------------------')
+ 
+        inbound_key, port = new_vless_inbound(user_id, username, gb_end)
+
         await query.message.reply_text(
             f'Ваш новый ключ:\n```{inbound_key}```',
             parse_mode='Markdown',
@@ -460,7 +513,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             remove_user_outline_key(user_id)
         key_id, key_url = new_outline_key()
         if key_id and key_url:
-            save_user(user, Outline_key_id=key_id, Outline_key_url=key_url, payment_info='TRUE')
+            save_user_sql(user)
             await query.message.reply_text(
                 f'Your new key has been generated:\n`{key_url}`',
                 parse_mode='Markdown',
@@ -480,7 +533,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             key_id, key_url = new_outline_key()
             if key_id and key_url:
-                save_user(user, Outline_key_id=key_id, Outline_key_url=key_url, payment_info='TRUE')
+                save_user_sql(user)
                 await query.message.reply_text(
                     f'Your new key:\n`{key_url}`',
                     parse_mode='Markdown',
@@ -496,7 +549,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             remove_user_outline_key(user_id)
         key_id, key_url = new_outline_key()
         if key_id and key_url:
-            save_user(user, Outline_key_id=key_id, Outline_key_url=key_url, payment_info='TRUE')
+            save_user_sql(user)
             await query.message.reply_text(
                 f'Your updated key:\n`{key_url}`',
                 parse_mode='Markdown',
@@ -525,6 +578,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text('Option not recognized.', reply_markup=return_keyboard())
 
 def main():
+    login()
     create_tables()
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     # Handlers

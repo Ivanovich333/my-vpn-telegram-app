@@ -90,15 +90,15 @@ def get_inbounds():
     else:
         print('Ошибка при получении списка inbound\'ов')
         print(response.text)
-
-def create_inbound(tg_user_ID = 'CHANGE', port = 12345, ip_address = None):
+    
+def create_inbound(tg_user_ID = 'CHANGE', port = 12351, ip_address = None, email = None, username = None):
 
     url = f'{BASE_URL}/panel/api/inbounds/add'
     headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
-    
+    tg_full_id = str(tg_user_ID) + '*' + str(email)
     # Генерация случайных параметров
     private_key, public_key = generate_reality_keys()
 
@@ -107,6 +107,7 @@ def create_inbound(tg_user_ID = 'CHANGE', port = 12345, ip_address = None):
     
     # Генерация клиента
     client_id = str(uuid.uuid4())
+
     sub_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=16))
     client_email = f'{sub_id}@pin5632.tg'
     
@@ -183,7 +184,7 @@ def create_inbound(tg_user_ID = 'CHANGE', port = 12345, ip_address = None):
     tag = f"inbound-{port}"
     
     payload = {
-        "remark": tg_user_ID,
+        "remark": tg_full_id,
         "port": port,
         "protocol": "vless",
         "settings": json.dumps(settings, ensure_ascii=False),
@@ -278,6 +279,27 @@ def add_client(inbound_id):
         print('Ошибка при добавлении клиента')
         print(response.text)
 
+def get_inbound():
+    data_users = []
+    url = f'{BASE_URL}/panel/api/inbounds/list'
+    response = session.get(url, verify=False)
+    
+    if response.status_code == 200:
+        data = response.json()
+        print('Доступные inbound\'ы:')
+        
+        for inbound in data.get('obj', []):
+            total_inf = inbound['up'] + inbound['down']
+            print(f"ID: {inbound['id']}, Remark: {inbound['remark']}, Up: {inbound['up']}, Down: {inbound['down']}, Total: {total_inf}")
+            # Добавляем информацию о каждом inbound в список
+            data_users.append([inbound['id'], inbound['remark'], inbound['up'], inbound['down']])
+    
+    else:
+        print('Ошибка при получении списка inbound\'ов')
+        print(response.text)
+
+    return data_users
+
 if __name__ == '__main__':
  
     if login():
@@ -286,4 +308,5 @@ if __name__ == '__main__':
         if inbound_id:
             # Если клиент добавляется при создании inbound, следующая строка не нужна
             # add_client(inbound_id)
-            get_inbounds()
+            a = get_inbound()
+            print(a)
