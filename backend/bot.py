@@ -96,7 +96,7 @@ def create_tables():
 
     # Create vless_keys table
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS vless_keys (
+        CREATE TABLE IF NOT EXISTS vless_inbounds (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             username TEXT NOT NULL,
@@ -104,6 +104,15 @@ def create_tables():
             port INTEGER NOT NULL,
             time_end DATETIME NOT NULL,
             gb_end INTEGER
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS vless_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_inbound INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            user_id TEXT NOT NULL
         )
     ''')
 
@@ -434,6 +443,26 @@ def update_subscription(user_id, status):
     finally:
         conn.close()
 
+def check_inbound_sql(user_id):
+    conn = connect_db()
+    if conn is None:
+        return None, None
+    cursor = conn.cursor()
+
+    # Проверка, существует ли запись с заданным user_id
+    cursor.execute('SELECT * FROM vless_keys WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+
+    # Закрытие соединения
+    cursor.close()
+    conn.close()
+
+    # Возвращаем результат проверки (True если есть запись, False если нет)
+    if result:
+        return True, result  # Возвращаем также найденную запись
+    else:
+        return False, None
+
 def new_vless_inbound(user_id, username, gb_end):
  
     conn = connect_db()
@@ -496,8 +525,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.application.create_task(get_status())
 
     elif query.data == 'New_inbound':
- 
-        inbound_key, port = new_vless_inbound(user_id, username, gb_end)
+        check_inbound_bool, result = check_inbound_sql(user_id)
+        gb_end = 5000000000
+
+        if (check_inbound_bool):
+            print('----------------------------------------------------------------')
+            print(result[1])
+            print('----------------------------------------------------------------')
+        else:
+            inbound_key, port = new_vless_inbound(user_id, username, gb_end)
 
         await query.message.reply_text(
             f'Ваш новый ключ:\n```{inbound_key}```',

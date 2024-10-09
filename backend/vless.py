@@ -250,7 +250,7 @@ def add_client(inbound_id):
             "alterId": 0,
             "email": email,
             "limitIp": 2,
-            "totalGB": 1000000,
+            "totalGB": 10000000000000000,
             "expiryTime": expiry_time,
             "enable": True,
             "tgId": "",
