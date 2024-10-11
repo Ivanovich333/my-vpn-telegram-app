@@ -1,0 +1,17 @@
+/* src/index.css */
+body {
+  margin: 0;
+  font-family: 'Roboto', sans-serif;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.MuiBottomNavigation-root {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+}
