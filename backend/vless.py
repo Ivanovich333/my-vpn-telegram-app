@@ -232,7 +232,7 @@ def create_inbound(tg_user_ID = 'CHANGE', port = 12351, ip_address = None, email
         print(response.text)
         return None
 
-def add_client(inbound_id):
+def add_client(inbound_id, email):
     url = f'{BASE_URL}/panel/api/inbounds/addClient'
     headers = {
         'Content-Type': 'application/json',
@@ -246,7 +246,7 @@ def add_client(inbound_id):
 
     settings = {
         "clients": [{
-            "id": client_id,
+            "id": "client_id",
             "alterId": 0,
             "email": email,
             "limitIp": 2,
@@ -307,6 +307,6 @@ if __name__ == '__main__':
         inbound_id = create_inbound()
         if inbound_id:
             # Если клиент добавляется при создании inbound, следующая строка не нужна
-            # add_client(inbound_id)
+            add_client(inbound_id, 'tet')
             a = get_inbound()
             print(a)

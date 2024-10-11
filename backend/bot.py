@@ -430,6 +430,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Update subscription status
 def update_subscription(user_id, status):
+
     conn = connect_db()
     if conn is None:
         return
@@ -530,16 +531,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if (check_inbound_bool):
             print('----------------------------------------------------------------')
-            print(result[1])
+            print(result)
             print('----------------------------------------------------------------')
+            add_client(result[0])
         else:
             inbound_key, port = new_vless_inbound(user_id, username, gb_end)
 
-        await query.message.reply_text(
-            f'Ваш новый ключ:\n```{inbound_key}```',
-            parse_mode='Markdown',
-            reply_markup=return_keyboard()
-        )
+            await query.message.reply_text(
+                f'Ваш новый ключ:\n```{inbound_key}```',
+                parse_mode='Markdown',
+                reply_markup=return_keyboard()
+            )
 
 
     elif query.data == 'New_key':
