@@ -91,14 +91,18 @@ def get_inbounds():
         print('Ошибка при получении списка inbound\'ов')
         print(response.text)
     
-def create_inbound(tg_user_ID = 'CHANGE', port = 12351, ip_address = None, email = None, username = None):
+def create_inbound(tg_user_ID = 'CHANGE', port = 32131, ip_address = None, user_id = None, email = None):
+
+    if port is not None:
+        port = random.randint(10000,40000)
+        print(f'New port: {port}')
 
     url = f'{BASE_URL}/panel/api/inbounds/add'
     headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
-    tg_full_id = str(tg_user_ID) + '*' + str(email)
+    tg_full_id = str(tg_user_ID) + '*' + str(user_id)
     # Генерация случайных параметров
     private_key, public_key = generate_reality_keys()
 
@@ -110,7 +114,8 @@ def create_inbound(tg_user_ID = 'CHANGE', port = 12351, ip_address = None, email
 
     sub_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=16))
     client_email = f'{sub_id}@pin5632.tg'
-    
+    client_email = email
+
     settings = {
         "clients": [
             {
@@ -241,7 +246,7 @@ def add_client(inbound_id, email):
 
     # Генерация информации о клиенте
     client_id = str(uuid.uuid4())
-    email = f'client_{client_id[:8]}@pin5632.com'
+    #email = f'client_{client_id[:8]}@pin5632.com'
     expiry_time = int(time.time() * 1000) + (30 * 24 * 60 * 60 * 1000)  # 30 дней в миллисекундах
 
     settings = {
@@ -250,7 +255,7 @@ def add_client(inbound_id, email):
             "alterId": 0,
             "email": email,
             "limitIp": 2,
-            "totalGB": 10000000000000000,
+            "totalGB": 0,
             "expiryTime": expiry_time,
             "enable": True,
             "tgId": "",
@@ -290,7 +295,11 @@ def get_inbound():
         
         for inbound in data.get('obj', []):
             total_inf = inbound['up'] + inbound['down']
-            print(f"ID: {inbound['id']}, Remark: {inbound['remark']}, Up: {inbound['up']}, Down: {inbound['down']}, Total: {total_inf}")
+            print('--------------------------------')
+            print(inbound['id'])
+            #print(inbound)
+            print(f"CLients: {inbound['clientStats']}")
+            #print(f"ID: {inbound['id']}, Remark: {inbound['remark']}, Up: {inbound['up']}, Down: {inbound['down']}, Total: {total_inf}")
             # Добавляем информацию о каждом inbound в список
             data_users.append([inbound['id'], inbound['remark'], inbound['up'], inbound['down']])
     
@@ -300,13 +309,34 @@ def get_inbound():
 
     return data_users
 
+
+def get_clients(inboundId):
+    data_users = []
+    url = f'{BASE_URL}/panel/api/inbounds/get/{inboundId}'
+    response = session.get(url, verify=False)
+    
+    if response.status_code == 200:
+        data = response.json()
+        info = data.get('obj', [])
+        print('Доступные inbound\'ы:')
+        print(info)
+        return info
+    
+    else:
+        print('Ошибка при получении списка inbound\'ов')
+        print(response.text)
+        return None
+
+
 if __name__ == '__main__':
  
     if login():
-        get_inbounds()
-        inbound_id = create_inbound()
-        if inbound_id:
+        #get_inbounds()
+        inbound_id = 119
+        get_clients(inbound_id)
+        #inbound_id = create_inbound()
+        #if inbound_id:
             # Если клиент добавляется при создании inbound, следующая строка не нужна
-            add_client(inbound_id, 'tet')
-            a = get_inbound()
-            print(a)
+            #add_client(inbound_id, 'tet')
+            #a = get_inbound()
+            #print(a)

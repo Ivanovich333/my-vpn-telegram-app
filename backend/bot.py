@@ -20,6 +20,7 @@ from vless import (
     create_inbound,
     add_client,
     get_inbound,
+    get_clients,
 )
 
 from telegram import (
@@ -100,7 +101,6 @@ def create_tables():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             username TEXT NOT NULL,
-            key TEXT NOT NULL,
             port INTEGER NOT NULL,
             time_end DATETIME NOT NULL,
             gb_end INTEGER
@@ -109,10 +109,11 @@ def create_tables():
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS vless_keys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER NOT NULL,
             id_inbound INTEGER NOT NULL,
             email TEXT NOT NULL,
-            user_id TEXT NOT NULL
+            user_id TEXT NOT NULL,
+            key TEXT NOT NULL
         )
     ''')
 
@@ -154,7 +155,7 @@ def save_vless_key(user_id, username, key, port, time_end=None, gb_end=None):
         update_str = ', '.join([f'{col}=excluded.{col}' for col in columns if col != 'user_id'])
 
         sql = f'''
-            INSERT INTO vless_keys ({columns_str})
+            INSERT INTO vless_inbounds ({columns_str})
             VALUES ({placeholders})
             ON CONFLICT(user_id) DO UPDATE SET {update_str}
         '''
@@ -325,7 +326,6 @@ def run_ssh_command(command):
 
 
 
-
 def new_outline_key():
     command = f'curl -s --insecure -X POST {SERVER_API_URL}/access-keys'
     output = run_ssh_command(command)
@@ -428,6 +428,51 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f'Your message "{text}" was not recognized.', reply_markup=main_keyboard())
 
+
+def new_client(user_id, inbound_id):
+    conn = connect_db()
+    if conn is None:
+        return
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT COUNT(*)
+        FROM vless_keys
+        WHERE user_id = ?
+    ''', (user_id,))
+
+    # Получаем результат
+    count = cursor.fetchone()[0]
+    print(f"Количество строк с user_id '{user_id}':", count)
+    email = str(count) + '@pin5632.tg'
+    add_client(inbound_id, email)
+    
+
+    cursor.execute('''
+    SELECT key
+    FROM vless_keys
+    WHERE user_id = ?
+    ''', (user_id,))
+
+# Получаем результат
+    result = cursor.fetchone()
+    if result:
+        key = result[0]  # Извлекаем первое значение кортежа, это будет 'key'
+        print(f"Key для user_id '{user_id}':", key)
+    else:
+        print(f"Значение 'key' не найдено для user_id '{user_id}'")
+    
+    key = key.replace("0@pin5632.tg", f"{count}@pin5632.tg")
+
+    cursor.execute(
+        'INSERT INTO vless_keys (id, id_inbound, email, user_id, key) VALUES (?, ?, ?, ?, ?)', 
+        (count, inbound_id, email, user_id, key)  # Добавляем ключ в запрос
+    )
+    conn.commit()
+    conn.close()
+
+    return key
+
 # Update subscription status
 def update_subscription(user_id, status):
 
@@ -451,7 +496,7 @@ def check_inbound_sql(user_id):
     cursor = conn.cursor()
 
     # Проверка, существует ли запись с заданным user_id
-    cursor.execute('SELECT * FROM vless_keys WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT * FROM vless_inbounds WHERE user_id = ?', (user_id,))
     result = cursor.fetchone()
 
     # Закрытие соединения
@@ -474,18 +519,22 @@ def new_vless_inbound(user_id, username, gb_end):
     # Генерация уникального порта, которого нет в таблице
     while True:
         port = random.randint(10000, 40000)
-        cursor.execute('SELECT port FROM vless_keys WHERE port = ?', (port,))
+        cursor.execute('SELECT port FROM vless_inbounds WHERE port = ?', (port,))
         if cursor.fetchone() is None:
             break
 
     time_end = (datetime.now() + timedelta(days=30)).isoformat()
-
-    inbound_id, inbound_key = create_inbound(username, port, ip_adress, user_id)  # Получаем id и ключ
+    email = '0@pin5632.tg'
+    inbound_id, inbound_key = create_inbound(username, port, ip_adress, user_id, email)  # Получаем id и ключ
 
     if inbound_id :  # Проверяем, что получили оба значения
         cursor.execute(
-            'INSERT INTO vless_keys (id, user_id, username, port, key, time_end, gb_end) VALUES (?, ?, ?, ?, ?, ?, ?)', 
-            (inbound_id, user_id, username, port, inbound_key, time_end, gb_end)  # Добавляем ключ в запрос
+            'INSERT INTO vless_inbounds (id, user_id, username, port, time_end, gb_end) VALUES (?, ?, ?, ?, ?, ?)', 
+            (inbound_id, user_id, username, port,  time_end, gb_end)  # Добавляем ключ в запрос
+        )
+        cursor.execute(
+            'INSERT INTO vless_keys (id, id_inbound, email, user_id, key) VALUES (?, ?, ?, ?, ?)', 
+            (0, inbound_id, email, user_id,  inbound_key)  # Добавляем ключ в запрос
         )
         conn.commit()  # Не забываем зафиксировать изменения
     else:
@@ -528,20 +577,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'New_inbound':
         check_inbound_bool, result = check_inbound_sql(user_id)
         gb_end = 5000000000
+        print(result)
 
         if (check_inbound_bool):
-            print('----------------------------------------------------------------')
-            print(result)
-            print('----------------------------------------------------------------')
-            add_client(result[0])
+            
+            inbound_key = new_client(user_id, result[0])
+
+
         else:
             inbound_key, port = new_vless_inbound(user_id, username, gb_end)
 
-            await query.message.reply_text(
-                f'Ваш новый ключ:\n```{inbound_key}```',
-                parse_mode='Markdown',
-                reply_markup=return_keyboard()
-            )
+        await query.message.reply_text(
+            f'Ваш новый ключ:\n```{inbound_key}```',
+            parse_mode='Markdown',
+            reply_markup=return_keyboard()
+        )
 
 
     elif query.data == 'New_key':
